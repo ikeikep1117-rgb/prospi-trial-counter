@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="指南">
+  <path d="M24 12h43c7 0 11 4 11 11v61H29c-7 0-11-4-11-11V18c0-3 3-6 6-6z" fill="#eee5d7" stroke="#7d7a72" stroke-width="4"/>
+  <path d="M24 12h12v72H24c-4 0-6-3-6-7V18c0-3 3-6 6-6z" fill="#c74843"/>
+  <path d="M38 25h27M38 36h22M38 47h27" stroke="#b6aa9a" stroke-width="4" stroke-linecap="round"/>
+  <text x="52" y="67" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#3a3936">指南</text>
+</svg>

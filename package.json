@@ -1,0 +1,16 @@
+{
+  "name": "prospi-trial-counter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "プロスピAの試練素材カウントツール",
+  "scripts": {
+    "start": "serve .",
+    "deploy:vercel": "vercel --prod",
+    "deploy:firebase": "firebase deploy --only hosting"
+  },
+  "devDependencies": {
+    "firebase-tools": "^14.13.0",
+    "serve": "^14.2.4",
+    "vercel": "^44.7.3"
+  }
+}

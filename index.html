@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>試練カウントツール | プロスピA 特殊能力素材計算</title>
+    <meta name="description" content="プロスピAの選手名、特殊能力3つ、現在Lvから、必要な試練素材と不足数を確認できるカウンターです。">
+    <meta property="og:title" content="試練カウントツール">
+    <meta property="og:description" content="選手ごとに特殊能力3つを入力して、必要素材・不足数・所持数をまとめて確認。">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/ogp.svg">
+    <meta name="theme-color" content="#0f7a4a">
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icon-192.svg">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="topbar" aria-label="サイト情報">
+        <a class="brand" href="#">
+          <img src="assets/app-icon.svg" alt="" width="36" height="36">
+          <span>試練カウントツール</span>
+        </a>
+        <a class="help-link" href="#guide">使い方</a>
+      </nav>
+      <section class="hero-inner">
+        <div>
+          <p class="eyebrow">プロスピA 特殊能力素材メモ</p>
+          <h1>選手ごとに、あと何個で特能を上げられるか。</h1>
+          <p class="lead">
+            選手名、特殊能力3つ、現在Lv、目標Lv、試練タイプを入力。
+            所持素材と照らし合わせて、必要数・不足数・コイン不足をまとめて確認できます。
+          </p>
+        </div>
+        <div class="quick-card" aria-label="全体サマリー">
+          <span class="quick-label">合計不足</span>
+          <strong id="heroShortage">0</strong>
+          <span class="quick-note">素材 + コイン</span>
+        </div>
+      </section>
+    </header>
+
+    <main>
+      <section class="tool-layout" aria-label="計算ツール">
+        <aside class="inventory-panel">
+          <div class="section-heading">
+            <p class="eyebrow">Counter</p>
+            <h2>今持ってる素材</h2>
+          </div>
+          <div class="inventory-grid" id="inventoryGrid"></div>
+          <label class="coin-input">
+            <span>所持コイン</span>
+            <input id="coinOwned" type="number" inputmode="numeric" min="0" step="1" value="0">
+          </label>
+          <button class="ghost-button" id="resetButton" type="button">入力をリセット</button>
+          <section class="icon-settings" aria-label="素材画像の設定">
+            <div class="mini-heading">
+              <p class="eyebrow">Images</p>
+              <h3>素材画像を差し替え</h3>
+            </div>
+            <div class="icon-settings-grid" id="iconSettings"></div>
+            <button class="ghost-button" id="resetImagesButton" type="button">素材画像を元に戻す</button>
+          </section>
+        </aside>
+
+        <section class="planner-panel">
+          <div class="section-heading row-heading">
+            <div>
+              <p class="eyebrow">Players</p>
+              <h2>選手と特殊能力</h2>
+            </div>
+            <button class="primary-button" id="addPlayerButton" type="button">+ 選手を追加</button>
+          </div>
+          <div class="player-list" id="playerList"></div>
+        </section>
+      </section>
+
+      <section class="summary-section" aria-label="必要素材まとめ">
+        <div class="section-heading">
+          <p class="eyebrow">Result</p>
+          <h2>必要数と不足数</h2>
+        </div>
+        <div class="summary-grid" id="summaryGrid"></div>
+      </section>
+
+      <section class="guide-section" id="guide">
+        <div>
+          <p class="eyebrow">Guide</p>
+          <h2>使い方</h2>
+        </div>
+        <ol>
+          <li>「今持ってる素材」に、ゲーム内で確認した所持数を入れます。</li>
+          <li>選手カードに選手名、特殊能力3つ、現在Lv、目標Lv、試練タイプを入力します。</li>
+          <li>「不足」が0なら、その素材は足りています。コイン不足も同時に確認できます。</li>
+        </ol>
+        <p class="small-note">
+          必要数は特殊能力1つをLvアップする一般的な素材表をもとにしています。ゲーム内表示が変わった場合は、ゲーム内の数値を優先してください。
+        </p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
