@@ -1,5 +1,5 @@
-const STORAGE_KEY = "prospi-trial-counter-v2";
-const OLD_STORAGE_KEY = "prospi-trial-counter-v1";
+const STORAGE_KEY = "prospi-trial-counter-v3";
+const OLD_STORAGE_KEYS = ["prospi-trial-counter-v2", "prospi-trial-counter-v1"];
 
 const materialNames = {
   proof: "証",
@@ -9,6 +9,11 @@ const materialNames = {
   awaken: "開眼の印",
   truth: "真価の印",
 };
+
+const trialTypes = ["剛力", "俊敏", "技巧", "心"];
+const typedMaterialKeys = ["proof", "guide", "secret"];
+const commonMaterialKeys = ["flash", "awaken", "truth"];
+const materialKeys = [...typedMaterialKeys, ...commonMaterialKeys];
 
 const materialImages = {
   "剛力:proof": "assets/material-photos/gouriki-proof.jpg",
@@ -28,28 +33,12 @@ const materialImages = {
   "common:truth": "assets/material-photos/mark-truth.jpg",
 };
 
-const fallbackMaterialImages = {
-  proof: "assets/materials/proof.svg",
-  guide: "assets/materials/guide.svg",
-  secret: "assets/materials/secret.svg",
-  flash: "assets/materials/flash.svg",
-  awaken: "assets/materials/awaken.svg",
-  truth: "assets/materials/truth.svg",
-};
-
-let customMaterialImages = {};
-
 const trialColors = {
-  "剛力": "#c5483d",
-  "俊敏": "#2f6fc9",
-  "技巧": "#2b8f50",
-  "心": "#c4478d",
+  "剛力": "#ff3d5f",
+  "俊敏": "#33a3ff",
+  "技巧": "#25f08c",
+  "心": "#ff4ddb",
 };
-
-const trialTypes = ["剛力", "俊敏", "技巧", "心"];
-const materialKeys = Object.keys(materialNames);
-const typedMaterialKeys = ["proof", "guide", "secret"];
-const commonMaterialKeys = ["flash", "awaken", "truth"];
 
 const levelCosts = {
   1: { coin: 3000, proof: 8, flash: 2 },
@@ -59,23 +48,17 @@ const levelCosts = {
   5: { coin: 15000, guide: 20, secret: 20, awaken: 5, truth: 5 },
 };
 
-const defaultState = {
-  inventory: buildEmptyInventory(),
-  coinOwned: 0,
-  players: [createPlayer("選手 1")],
-};
-
-let state = loadState();
-
 const inventoryGrid = document.querySelector("#inventoryGrid");
 const coinOwned = document.querySelector("#coinOwned");
 const playerList = document.querySelector("#playerList");
 const summaryGrid = document.querySelector("#summaryGrid");
-const iconSettings = document.querySelector("#iconSettings");
 const addPlayerButton = document.querySelector("#addPlayerButton");
 const resetButton = document.querySelector("#resetButton");
-const resetImagesButton = document.querySelector("#resetImagesButton");
 const heroShortage = document.querySelector("#heroShortage");
+const tabButtons = document.querySelectorAll(".tab-button");
+const tabPanels = document.querySelectorAll(".tab-panel");
+
+let state = loadState();
 
 function createAbility(name = "") {
   return {
@@ -96,63 +79,50 @@ function createPlayer(name) {
 }
 
 function buildEmptyInventory() {
-  const inventory = trialTypes.reduce((all, type) => {
-    all[type] = typedMaterialKeys.reduce((items, key) => {
-      items[key] = 0;
-      return items;
-    }, {});
-    return all;
-  }, {});
-  inventory.common = commonMaterialKeys.reduce((items, key) => {
-    items[key] = 0;
-    return items;
-  }, {});
+  const inventory = { common: {} };
+  trialTypes.forEach((type) => {
+    inventory[type] = {};
+    typedMaterialKeys.forEach((key) => {
+      inventory[type][key] = 0;
+    });
+  });
+  commonMaterialKeys.forEach((key) => {
+    inventory.common[key] = 0;
+  });
   return inventory;
 }
 
-function isCommonMaterial(key) {
-  return commonMaterialKeys.includes(key);
-}
-
 function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return normalizeState(JSON.parse(saved));
-    } catch {
-      return structuredClone(defaultState);
-    }
+  const saved = localStorage.getItem(STORAGE_KEY) || OLD_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
+  if (!saved) {
+    return {
+      inventory: buildEmptyInventory(),
+      coinOwned: 0,
+      players: [createPlayer("選手 1")],
+    };
   }
 
-  const oldSaved = localStorage.getItem(OLD_STORAGE_KEY);
-  if (oldSaved) {
-    try {
-      const oldState = JSON.parse(oldSaved);
-      return normalizeState({
-        inventory: oldState.inventory,
-        coinOwned: oldState.coinOwned,
-        players: [
-          {
-            id: crypto.randomUUID(),
-            name: "選手 1",
-            abilities: oldState.abilities?.slice(0, 3) || [],
-          },
-        ],
-      });
-    } catch {
-      return structuredClone(defaultState);
+  try {
+    const parsed = JSON.parse(saved);
+    if (parsed.abilities && !parsed.players) {
+      parsed.players = [{ id: crypto.randomUUID(), name: "選手 1", abilities: parsed.abilities.slice(0, 3) }];
     }
+    return normalizeState(parsed);
+  } catch {
+    return {
+      inventory: buildEmptyInventory(),
+      coinOwned: 0,
+      players: [createPlayer("選手 1")],
+    };
   }
-
-  return structuredClone(defaultState);
 }
 
 function normalizeState(source = {}) {
-  const players = Array.isArray(source.players) && source.players.length ? source.players : defaultState.players;
+  const players = Array.isArray(source.players) && source.players.length ? source.players : [createPlayer("選手 1")];
   return {
     inventory: mergeInventory(source.inventory),
     coinOwned: numberOrZero(source.coinOwned),
-    players: players.map((player, playerIndex) => normalizePlayer(player, playerIndex)),
+    players: players.map(normalizePlayer),
   };
 }
 
@@ -193,98 +163,6 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function openImageDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open("prospi-trial-images", 1);
-
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore("materials");
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function loadCustomMaterialImages() {
-  const db = await openImageDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("materials", "readonly");
-    const store = transaction.objectStore("materials");
-    const loaded = {};
-
-    const request = store.getAllKeys();
-    request.onsuccess = () => {
-      request.result.forEach((key) => {
-        const getRequest = store.get(key);
-        getRequest.onsuccess = () => {
-          if (getRequest.result) loaded[key] = getRequest.result;
-        };
-      });
-    };
-
-    transaction.oncomplete = () => {
-      db.close();
-      resolve(loaded);
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
-
-function materialImageKey(type, key) {
-  return isCommonMaterial(key) ? `common:${key}` : `${type}:${key}`;
-}
-
-function getCustomMaterialImage(type, key) {
-  if (isCommonMaterial(key)) {
-    return customMaterialImages[materialImageKey(type, key)] || customMaterialImages[key] || trialTypes.map((trialType) => customMaterialImages[`${trialType}:${key}`]).find(Boolean);
-  }
-  return customMaterialImages[materialImageKey(type, key)] || customMaterialImages[key];
-}
-
-async function saveCustomMaterialImage(key, dataUrl) {
-  const db = await openImageDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("materials", "readwrite");
-    transaction.objectStore("materials").put(dataUrl, key);
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
-
-async function clearCustomMaterialImages() {
-  const db = await openImageDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction("materials", "readwrite");
-    transaction.objectStore("materials").clear();
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 function numberOrZero(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
@@ -294,6 +172,19 @@ function clampLevel(value, fallback, min = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
   return Math.min(5, Math.max(min, Math.floor(numeric)));
+}
+
+function materialImageKey(type, key) {
+  return commonMaterialKeys.includes(key) ? `common:${key}` : `${type}:${key}`;
+}
+
+function materialIcon(key, type = "") {
+  const color = commonMaterialKeys.includes(key) ? "#ffd166" : trialColors[type] || "#7df9ff";
+  return `
+    <span class="material-icon" style="--trial-color: ${color}">
+      <img src="${materialImages[materialImageKey(type, key)]}" alt="" loading="lazy">
+    </span>
+  `;
 }
 
 function getCostFromTo(current, target) {
@@ -319,7 +210,7 @@ function getAbilityCost(ability) {
   return getCostFromTo(current, target);
 }
 
-function getTotals() {
+function createEmptyTotals() {
   const totals = { coin: 0, common: {} };
   commonMaterialKeys.forEach((key) => {
     totals.common[key] = 0;
@@ -330,21 +221,66 @@ function getTotals() {
       totals[type][key] = 0;
     });
   });
+  return totals;
+}
 
+function getTotals() {
+  const totals = createEmptyTotals();
   state.players.forEach((player) => {
     player.abilities.forEach((ability) => {
-      const cost = getAbilityCost(ability);
-      totals.coin += cost.coin;
-      typedMaterialKeys.forEach((key) => {
-        totals[ability.type][key] += cost[key];
-      });
-      commonMaterialKeys.forEach((key) => {
-        totals.common[key] += cost[key];
-      });
+      addAbilityCostToTotals(totals, ability, getAbilityCost(ability));
     });
   });
-
   return totals;
+}
+
+function getPlayerCost(player) {
+  const totals = createEmptyTotals();
+  player.abilities.forEach((ability) => {
+    addAbilityCostToTotals(totals, ability, getAbilityCost(ability));
+  });
+  return totals;
+}
+
+function addAbilityCostToTotals(totals, ability, cost) {
+  totals.coin += cost.coin;
+  typedMaterialKeys.forEach((key) => {
+    totals[ability.type][key] += cost[key];
+  });
+  commonMaterialKeys.forEach((key) => {
+    totals.common[key] += cost[key];
+  });
+}
+
+function getOwnedForItem(item) {
+  if (item.kind === "coin") return state.coinOwned;
+  if (item.type) return state.inventory[item.type][item.key];
+  return state.inventory.common[item.key];
+}
+
+function getRequiredItemsFromTotals(totals) {
+  const items = [{ kind: "coin", key: "coin", name: "コイン", required: totals.coin }];
+  trialTypes.forEach((type) => {
+    typedMaterialKeys.forEach((key) => {
+      items.push({ kind: "material", type, key, name: `${type}の${materialNames[key]}`, required: totals[type][key] });
+    });
+  });
+  commonMaterialKeys.forEach((key) => {
+    items.push({ kind: "material", key, name: materialNames[key], required: totals.common[key] });
+  });
+  return items.filter((item) => item.required > 0 || item.kind === "coin");
+}
+
+function getShortageItemsFromTotals(totals) {
+  return getRequiredItemsFromTotals(totals)
+    .map((item) => ({ ...item, owned: getOwnedForItem(item), shortage: Math.max(0, item.required - getOwnedForItem(item)) }))
+    .filter((item) => item.shortage > 0);
+}
+
+function getTotalShortage(totals) {
+  return getRequiredItemsFromTotals(totals).reduce((sum, item) => {
+    return sum + Math.max(0, item.required - getOwnedForItem(item));
+  }, 0);
 }
 
 function renderInventory() {
@@ -352,136 +288,65 @@ function renderInventory() {
 
   trialTypes.forEach((type) => {
     typedMaterialKeys.forEach((key) => {
-      const row = document.createElement("div");
-      row.className = "counter-row";
-      row.innerHTML = `
-        <label for="inv-${type}-${key}">
-          ${materialIcon(key, type)}
-          <span>${type}の${materialNames[key]}</span>
-        </label>
-        <input id="inv-${type}-${key}" type="number" min="0" inputmode="numeric" value="${state.inventory[type][key]}">
-      `;
-      row.querySelector("input").addEventListener("input", (event) => {
-        state.inventory[type][key] = numberOrZero(event.target.value);
-        saveAndRender();
-      });
-      inventoryGrid.append(row);
+      inventoryGrid.append(createInventoryRow(`${type}の${materialNames[key]}`, materialIcon(key, type), state.inventory[type][key], (value) => {
+        state.inventory[type][key] = value;
+      }));
     });
   });
 
   commonMaterialKeys.forEach((key) => {
-    const row = document.createElement("div");
-    row.className = "counter-row";
-    row.innerHTML = `
-      <label for="inv-common-${key}">
-        ${materialIcon(key)}
-        <span>${materialNames[key]}</span>
-      </label>
-      <input id="inv-common-${key}" type="number" min="0" inputmode="numeric" value="${state.inventory.common[key]}">
-    `;
-    row.querySelector("input").addEventListener("input", (event) => {
-      state.inventory.common[key] = numberOrZero(event.target.value);
-      saveAndRender();
-    });
-    inventoryGrid.append(row);
+    inventoryGrid.append(createInventoryRow(materialNames[key], materialIcon(key), state.inventory.common[key], (value) => {
+      state.inventory.common[key] = value;
+    }));
   });
 
   coinOwned.value = state.coinOwned;
 }
 
-function renderIconSettings() {
-  iconSettings.innerHTML = "";
-
-  trialTypes.forEach((type) => {
-    const group = document.createElement("section");
-    group.className = "icon-setting-group";
-    group.innerHTML = `<h4>${type}</h4><div class="icon-setting-group-grid"></div>`;
-    const groupGrid = group.querySelector(".icon-setting-group-grid");
-
-    typedMaterialKeys.forEach((key) => {
-      const imageKey = materialImageKey(type, key);
-      const hasExactImage = Boolean(customMaterialImages[imageKey]);
-      const hasInheritedImage = !hasExactImage && Boolean(customMaterialImages[key]);
-      const row = document.createElement("div");
-      row.className = "icon-setting-row";
-      row.innerHTML = `
-        <div class="icon-setting-preview">
-          ${materialIcon(key, type)}
-          <div>
-            <strong>${type}の${materialNames[key]}</strong>
-            <span>${hasExactImage ? "個別写真を使用中" : hasInheritedImage ? "旧写真を使用中" : "標準アイコン"}</span>
-          </div>
-        </div>
-        <label class="image-pick-button">
-          写真を選ぶ
-          <input type="file" accept="image/*" data-material-image="${imageKey}">
-        </label>
-      `;
-
-      row.querySelector("input").addEventListener("change", async (event) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const dataUrl = await fileToDataUrl(file);
-        customMaterialImages[imageKey] = dataUrl;
-        await saveCustomMaterialImage(imageKey, dataUrl);
-        renderEverything();
-      });
-
-      groupGrid.append(row);
-    });
-
-    iconSettings.append(group);
+function createInventoryRow(label, icon, value, onInput) {
+  const row = document.createElement("div");
+  row.className = "counter-row";
+  row.innerHTML = `
+    <label>${icon}<span>${label}</span></label>
+    <input type="number" min="0" inputmode="numeric" value="${value}">
+  `;
+  row.querySelector("input").addEventListener("input", (event) => {
+    onInput(numberOrZero(event.target.value));
+    saveAndRenderSummaryOnly();
   });
+  return row;
+}
 
-  const commonGroup = document.createElement("section");
-  commonGroup.className = "icon-setting-group";
-  commonGroup.innerHTML = `<h4>共通の印</h4><div class="icon-setting-group-grid"></div>`;
-  const commonGroupGrid = commonGroup.querySelector(".icon-setting-group-grid");
-
-  commonMaterialKeys.forEach((key) => {
-    const imageKey = materialImageKey("", key);
-    const hasExactImage = Boolean(customMaterialImages[imageKey]);
-    const hasInheritedImage = !hasExactImage && Boolean(customMaterialImages[key]);
-    const row = document.createElement("div");
-    row.className = "icon-setting-row";
-    row.innerHTML = `
-      <div class="icon-setting-preview">
-        ${materialIcon(key)}
-        <div>
-          <strong>${materialNames[key]}</strong>
-          <span>${hasExactImage ? "個別写真を使用中" : hasInheritedImage ? "旧写真を使用中" : "標準アイコン"}</span>
-        </div>
-      </div>
-      <label class="image-pick-button">
-        写真を選ぶ
-        <input type="file" accept="image/*" data-material-image="${imageKey}">
-      </label>
-    `;
-
-    row.querySelector("input").addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const dataUrl = await fileToDataUrl(file);
-      customMaterialImages[imageKey] = dataUrl;
-      await saveCustomMaterialImage(imageKey, dataUrl);
-      renderEverything();
-    });
-
-    commonGroupGrid.append(row);
+function renderSummary() {
+  const totals = getTotals();
+  summaryGrid.innerHTML = "";
+  getRequiredItemsFromTotals(totals).forEach((item) => {
+    const owned = getOwnedForItem(item);
+    summaryGrid.append(createSummaryItem(item, owned));
   });
+  heroShortage.textContent = getTotalShortage(totals).toLocaleString();
+}
 
-  iconSettings.append(commonGroup);
+function createSummaryItem(item, owned) {
+  const shortage = Math.max(0, item.required - owned);
+  const div = document.createElement("div");
+  div.className = "summary-item";
+  div.innerHTML = `
+    <span class="summary-name">${itemIcon(item)}<span>${item.name}</span></span>
+    <span class="summary-values">
+      <span class="badge">必要 ${item.required.toLocaleString()}</span>
+      <span class="badge">所持 ${owned.toLocaleString()}</span>
+      <span class="badge ${shortage ? "short" : "ok"}">不足 ${shortage.toLocaleString()}</span>
+    </span>
+  `;
+  return div;
 }
 
 function renderPlayers() {
   playerList.innerHTML = "";
-
   state.players.forEach((player, playerIndex) => {
-    const playerCost = getPlayerCost(player);
-    const shortage = getPlayerShortage(playerCost);
-    const shortageDetails = getPlayerShortageDetails(playerCost);
+    const playerTotals = getPlayerCost(player);
+    const playerShortages = getShortageItemsFromTotals(playerTotals);
     const card = document.createElement("article");
     card.className = "player-card";
     card.innerHTML = `
@@ -491,23 +356,18 @@ function renderPlayers() {
           <input data-player-field="name" value="${escapeHtml(player.name)}" aria-label="選手名">
         </label>
         <div class="player-total">
-          <span>この選手の不足</span>
-          <strong>${shortage.toLocaleString()}</strong>
+          <span>この選手の不足合計</span>
+          <strong>${getTotalShortage(playerTotals).toLocaleString()}</strong>
         </div>
         <button class="remove-button" type="button" ${state.players.length === 1 ? "disabled" : ""}>削除</button>
       </div>
-      <div class="ability-table" aria-label="${escapeHtml(player.name)}の特殊能力">
+      <div class="ability-table">
         ${player.abilities.map((ability, abilityIndex) => abilityRow(ability, abilityIndex)).join("")}
       </div>
-      <div class="ability-result">
-        <span class="pill">必要コイン ${playerCost.coin.toLocaleString()}</span>
-        <span class="pill ${Math.max(0, playerCost.coin - state.coinOwned) ? "warn" : ""}">コイン不足 ${Math.max(0, playerCost.coin - state.coinOwned).toLocaleString()}</span>
-        <span class="pill ${shortage ? "warn" : ""}">不足合計 ${shortage.toLocaleString()}</span>
-      </div>
       <div class="shortage-detail">
-        <span class="shortage-title">この選手で足りないもの</span>
+        <span class="shortage-title">この選手の合計不足</span>
         <div class="shortage-list">
-          ${shortageDetails.length ? shortageDetails.map(shortageChip).join("") : '<span class="shortage-chip ok">全部足りています</span>'}
+          ${playerShortages.length ? playerShortages.map(shortageChip).join("") : '<span class="shortage-chip ok">全部足りています</span>'}
         </div>
       </div>
     `;
@@ -521,9 +381,18 @@ function renderPlayers() {
       input.addEventListener("input", (event) => {
         const abilityIndex = Number(event.target.dataset.abilityIndex);
         const field = event.target.dataset.abilityField;
-        const value = ["current", "target"].includes(field) ? clampLevel(event.target.value, field === "target" ? 5 : 0, field === "target" ? 1 : 0) : event.target.value;
-        state.players[playerIndex].abilities[abilityIndex][field] = value;
         const ability = state.players[playerIndex].abilities[abilityIndex];
+
+        if (field === "name") {
+          ability.name = event.target.value;
+          saveState();
+          return;
+        }
+
+        ability[field] = ["current", "target"].includes(field)
+          ? clampLevel(event.target.value, field === "target" ? 5 : 0, field === "target" ? 1 : 0)
+          : event.target.value;
+
         if (ability.target < ability.current) {
           ability.target = ability.current;
         }
@@ -543,10 +412,6 @@ function renderPlayers() {
 function abilityRow(ability, abilityIndex) {
   const cost = getAbilityCost(ability);
   const shortages = getAbilityShortages(cost, ability.type);
-  const shortageText = shortages.length
-    ? shortages.map((item) => `${item.name} ${item.count}個`).join(" / ")
-    : "不足なし";
-
   return `
     <div class="ability-row">
       <label class="field ability-name">
@@ -567,169 +432,39 @@ function abilityRow(ability, abilityIndex) {
       </label>
       <div class="row-result">
         <span>必要 ${cost.coin.toLocaleString()}コイン</span>
-        <span class="${shortages.length ? "short-text" : "ok-text"}">${shortageText}</span>
+        <div class="shortage-list compact">
+          ${shortages.length ? shortages.map(shortageChip).join("") : '<span class="shortage-chip ok">不足なし</span>'}
+        </div>
       </div>
     </div>
   `;
 }
 
 function getAbilityShortages(cost, type) {
-  const typedShortages = typedMaterialKeys.map((key) => ({
-      key,
-      type,
-      name: `${type}の${materialNames[key]}`,
-      count: Math.max(0, cost[key] - state.inventory[type][key]),
-    }));
-  const commonShortages = commonMaterialKeys.map((key) => ({
-      key,
-      name: materialNames[key],
-      count: Math.max(0, cost[key] - state.inventory.common[key]),
-    }));
-  return [...typedShortages, ...commonShortages].filter((item) => item.count > 0);
-}
-
-function getPlayerCost(player) {
-  const cost = { coin: 0, common: {} };
-  commonMaterialKeys.forEach((key) => {
-    cost.common[key] = 0;
-  });
-  trialTypes.forEach((type) => {
-    cost[type] = {};
-    typedMaterialKeys.forEach((key) => {
-      cost[type][key] = 0;
-    });
-  });
-
-  player.abilities.forEach((ability) => {
-    const abilityCost = getAbilityCost(ability);
-    cost.coin += abilityCost.coin;
-    typedMaterialKeys.forEach((key) => {
-      cost[ability.type][key] += abilityCost[key];
-    });
-    commonMaterialKeys.forEach((key) => {
-      cost.common[key] += abilityCost[key];
-    });
-  });
-
-  return cost;
-}
-
-function getPlayerShortage(cost) {
-  let shortage = Math.max(0, cost.coin - state.coinOwned);
-  trialTypes.forEach((type) => {
-    typedMaterialKeys.forEach((key) => {
-      shortage += Math.max(0, cost[type][key] - state.inventory[type][key]);
-    });
+  const items = [];
+  typedMaterialKeys.forEach((key) => {
+    const required = cost[key];
+    const owned = state.inventory[type][key];
+    const shortage = Math.max(0, required - owned);
+    if (shortage) items.push({ kind: "material", type, key, name: `${type}の${materialNames[key]}`, shortage });
   });
   commonMaterialKeys.forEach((key) => {
-    shortage += Math.max(0, cost.common[key] - state.inventory.common[key]);
+    const required = cost[key];
+    const owned = state.inventory.common[key];
+    const shortage = Math.max(0, required - owned);
+    if (shortage) items.push({ kind: "material", key, name: materialNames[key], shortage });
   });
-  return shortage;
-}
-
-function getPlayerShortageDetails(cost) {
-  const details = [];
-  const coinShortage = Math.max(0, cost.coin - state.coinOwned);
-  if (coinShortage) {
-    details.push({ kind: "coin", name: "コイン", count: coinShortage });
-  }
-
-  trialTypes.forEach((type) => {
-    typedMaterialKeys.forEach((key) => {
-      const count = Math.max(0, cost[type][key] - state.inventory[type][key]);
-      if (count) {
-        details.push({ kind: "material", type, key, name: `${type}の${materialNames[key]}`, count });
-      }
-    });
-  });
-  commonMaterialKeys.forEach((key) => {
-    const count = Math.max(0, cost.common[key] - state.inventory.common[key]);
-    if (count) {
-      details.push({ kind: "material", key, name: materialNames[key], count });
-    }
-  });
-
-  return details;
+  return items;
 }
 
 function shortageChip(item) {
-  const icon = item.kind === "coin" ? '<span class="coin-mark">C</span>' : materialIcon(item.key, item.type);
   const unit = item.kind === "coin" ? "枚" : "個";
-  return `<span class="shortage-chip">${icon}<span>${item.name} ${item.count.toLocaleString()}${unit}</span></span>`;
+  return `<span class="shortage-chip">${itemIcon(item)}<span>${item.name} ${item.shortage.toLocaleString()}${unit}</span></span>`;
 }
 
-function renderSummary() {
-  const totals = getTotals();
-  summaryGrid.innerHTML = "";
-
-  let totalShortage = Math.max(0, totals.coin - state.coinOwned);
-  summaryGrid.append(createSummaryItem("コイン", totals.coin, state.coinOwned));
-
-  trialTypes.forEach((type) => {
-    typedMaterialKeys.forEach((key) => {
-      const required = totals[type][key];
-      if (!required) return;
-      const owned = state.inventory[type][key];
-      totalShortage += Math.max(0, required - owned);
-      summaryGrid.append(createSummaryItem(`${type}の${materialNames[key]}`, required, owned));
-    });
-  });
-  commonMaterialKeys.forEach((key) => {
-    const required = totals.common[key];
-    if (!required) return;
-    const owned = state.inventory.common[key];
-    totalShortage += Math.max(0, required - owned);
-    summaryGrid.append(createSummaryItem(materialNames[key], required, owned));
-  });
-
-  if (summaryGrid.children.length === 1 && totals.coin === 0) {
-    const empty = document.createElement("div");
-    empty.className = "summary-item";
-    empty.innerHTML = `<span class="summary-name">まだ必要素材はありません</span><span class="badge ok">Lv設定を選んでください</span>`;
-    summaryGrid.innerHTML = "";
-    summaryGrid.append(empty);
-  }
-
-  heroShortage.textContent = totalShortage.toLocaleString();
-}
-
-function createSummaryItem(name, required, owned) {
-  const shortage = Math.max(0, required - owned);
-  const item = document.createElement("div");
-  item.className = "summary-item";
-  item.innerHTML = `
-    <span class="summary-name">${summaryNameWithIcon(name)}</span>
-    <span class="summary-values">
-      <span class="badge">必要 ${required.toLocaleString()}</span>
-      <span class="badge">所持 ${owned.toLocaleString()}</span>
-      <span class="badge ${shortage ? "short" : "ok"}">不足 ${shortage.toLocaleString()}</span>
-    </span>
-  `;
-  return item;
-}
-
-function summaryNameWithIcon(name) {
-  if (name === "コイン") {
-    return `<span class="coin-mark">C</span><span>${name}</span>`;
-  }
-
-  const type = trialTypes.find((trialType) => name.startsWith(`${trialType}の`));
-  const materialKey = materialKeys.find((key) => name.endsWith(materialNames[key]));
-  if (materialKey && isCommonMaterial(materialKey) && !type) {
-    return `${materialIcon(materialKey)}<span>${escapeHtml(name)}</span>`;
-  }
-  if (!type || !materialKey) return `<span>${escapeHtml(name)}</span>`;
-
-  return `${materialIcon(materialKey, type)}<span>${escapeHtml(name)}</span>`;
-}
-
-function materialIcon(key, type) {
-  const src = getCustomMaterialImage(type, key) || materialImages[materialImageKey(type, key)] || fallbackMaterialImages[key];
-  return `
-    <span class="material-icon" style="--trial-color: ${trialColors[type] || "#0f7a4a"}">
-      <img src="${src}" alt="" loading="lazy">
-    </span>
-  `;
+function itemIcon(item) {
+  if (item.kind === "coin") return '<span class="coin-mark">C</span>';
+  return materialIcon(item.key, item.type || "");
 }
 
 function levelOptions(selected, min = 0) {
@@ -747,18 +482,41 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function saveAndRenderSummaryOnly() {
+  saveState();
+  renderSummary();
+  renderPlayers();
+}
+
 function saveAndRender() {
   saveState();
-  renderPlayers();
   renderSummary();
+  renderPlayers();
 }
 
 function renderEverything() {
   renderInventory();
-  renderIconSettings();
-  renderPlayers();
   renderSummary();
+  renderPlayers();
 }
+
+function activateTab(button) {
+  const panelId = button.getAttribute("aria-controls");
+  tabButtons.forEach((tabButton) => {
+    const isActive = tabButton === button;
+    tabButton.classList.toggle("is-active", isActive);
+    tabButton.setAttribute("aria-selected", String(isActive));
+  });
+  tabPanels.forEach((panel) => {
+    const isActive = panel.id === panelId;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
+}
+
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => activateTab(button));
+});
 
 addPlayerButton.addEventListener("click", () => {
   state.players.push(createPlayer(`選手 ${state.players.length + 1}`));
@@ -767,26 +525,17 @@ addPlayerButton.addEventListener("click", () => {
 
 coinOwned.addEventListener("input", (event) => {
   state.coinOwned = numberOrZero(event.target.value);
-  saveAndRender();
+  saveAndRenderSummaryOnly();
 });
 
 resetButton.addEventListener("click", () => {
-  state = structuredClone(defaultState);
+  state = {
+    inventory: buildEmptyInventory(),
+    coinOwned: 0,
+    players: [createPlayer("選手 1")],
+  };
   saveState();
   renderEverything();
 });
 
-resetImagesButton.addEventListener("click", async () => {
-  customMaterialImages = {};
-  await clearCustomMaterialImages();
-  renderEverything();
-});
-
-(async function init() {
-  try {
-    customMaterialImages = await loadCustomMaterialImages();
-  } catch {
-    customMaterialImages = {};
-  }
-  renderEverything();
-})();
+renderEverything();
