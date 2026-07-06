@@ -14,6 +14,11 @@ const trialTypes = ["剛力", "俊敏", "技巧", "心"];
 const typedMaterialKeys = ["proof", "guide", "secret"];
 const commonMaterialKeys = ["flash", "awaken", "truth"];
 const materialKeys = [...typedMaterialKeys, ...commonMaterialKeys];
+const priorities = {
+  high: "高",
+  middle: "中",
+  low: "低",
+};
 
 const materialImages = {
   "剛力:proof": "assets/material-photos/gouriki-proof.jpg",
@@ -55,6 +60,7 @@ const summaryGrid = document.querySelector("#summaryGrid");
 const addPlayerButton = document.querySelector("#addPlayerButton");
 const resetButton = document.querySelector("#resetButton");
 const heroShortage = document.querySelector("#heroShortage");
+const priorityFilter = document.querySelector("#priorityFilter");
 const tabButtons = document.querySelectorAll(".tab-button");
 const tabPanels = document.querySelectorAll(".tab-panel");
 
@@ -74,6 +80,8 @@ function createPlayer(name) {
   return {
     id: crypto.randomUUID(),
     name,
+    priority: "middle",
+    isOpen: true,
     abilities: [createAbility("特殊能力 1"), createAbility("特殊能力 2"), createAbility("特殊能力 3")],
   };
 }
@@ -135,6 +143,8 @@ function normalizePlayer(player, playerIndex) {
   return {
     id: player.id || crypto.randomUUID(),
     name: player.name || `選手 ${playerIndex + 1}`,
+    priority: priorities[player.priority] ? player.priority : "middle",
+    isOpen: player.isOpen === undefined ? true : Boolean(player.isOpen),
     abilities: abilities.map((ability, abilityIndex) => ({
       id: ability.id || crypto.randomUUID(),
       name: ability.name || `特殊能力 ${abilityIndex + 1}`,
@@ -344,37 +354,74 @@ function createSummaryItem(item, owned) {
 
 function renderPlayers() {
   playerList.innerHTML = "";
-  state.players.forEach((player, playerIndex) => {
+  const visiblePlayers = getVisiblePlayers();
+
+  if (!visiblePlayers.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "この優先順位の選手はまだいません";
+    playerList.append(empty);
+    return;
+  }
+
+  visiblePlayers.forEach(({ player, playerIndex }) => {
     const playerTotals = getPlayerCost(player);
     const playerShortages = getShortageItemsFromTotals(playerTotals);
+    const totalShortage = getTotalShortage(playerTotals);
+    const isOpen = Boolean(player.isOpen);
     const card = document.createElement("article");
-    card.className = "player-card";
+    card.className = `player-card ${isOpen ? "is-open" : "is-collapsed"}`;
     card.innerHTML = `
       <div class="player-head">
+        <button class="collapse-button" type="button" aria-expanded="${isOpen}" aria-label="${isOpen ? "閉じる" : "開く"}">
+          <span class="collapse-icon">${isOpen ? "−" : "+"}</span>
+        </button>
         <label class="field player-name">
           <span>選手名</span>
           <input data-player-field="name" value="${escapeHtml(player.name)}" aria-label="選手名">
         </label>
+        <label class="field priority-field">
+          <span>優先順位</span>
+          <select data-player-field="priority">
+            ${priorityOptions(player.priority)}
+          </select>
+        </label>
         <div class="player-total">
           <span>この選手の不足合計</span>
-          <strong>${getTotalShortage(playerTotals).toLocaleString()}</strong>
+          <strong>${totalShortage.toLocaleString()}</strong>
         </div>
-        <button class="remove-button" type="button" ${state.players.length === 1 ? "disabled" : ""}>削除</button>
+        <div class="player-actions">
+          <button class="sort-button" type="button" data-move="up" ${playerIndex === 0 ? "disabled" : ""}>↑</button>
+          <button class="sort-button" type="button" data-move="down" ${playerIndex === state.players.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="remove-button" type="button" ${state.players.length === 1 ? "disabled" : ""}>削除</button>
+        </div>
       </div>
-      <div class="ability-table">
-        ${player.abilities.map((ability, abilityIndex) => abilityRow(ability, abilityIndex)).join("")}
-      </div>
-      <div class="shortage-detail">
-        <span class="shortage-title">この選手の合計不足</span>
-        <div class="shortage-list">
-          ${playerShortages.length ? playerShortages.map(shortageChip).join("") : '<span class="shortage-chip ok">全部足りています</span>'}
+      <div class="player-body" ${isOpen ? "" : "hidden"}>
+        <div class="ability-table">
+          ${player.abilities.map((ability, abilityIndex) => abilityRow(ability, abilityIndex)).join("")}
+        </div>
+        <div class="shortage-detail">
+          <span class="shortage-title">この選手の合計不足</span>
+          <div class="shortage-list">
+            ${playerShortages.length ? playerShortages.map(shortageChip).join("") : '<span class="shortage-chip ok">全部足りています</span>'}
+          </div>
         </div>
       </div>
     `;
 
+    card.querySelector(".collapse-button").addEventListener("click", () => {
+      state.players[playerIndex].isOpen = !state.players[playerIndex].isOpen;
+      saveAndRender();
+    });
+
     card.querySelector("[data-player-field='name']").addEventListener("input", (event) => {
       state.players[playerIndex].name = event.target.value;
       saveState();
+    });
+
+    card.querySelector("[data-player-field='priority']").addEventListener("input", (event) => {
+      state.players[playerIndex].priority = event.target.value;
+      saveAndRender();
     });
 
     card.querySelectorAll("[data-ability-field]").forEach((input) => {
@@ -405,8 +452,29 @@ function renderPlayers() {
       saveAndRender();
     });
 
+    card.querySelectorAll("[data-move]").forEach((button) => {
+      button.addEventListener("click", () => {
+        movePlayer(playerIndex, button.dataset.move);
+      });
+    });
+
     playerList.append(card);
   });
+}
+
+function getVisiblePlayers() {
+  const selectedPriority = priorityFilter.value;
+  return state.players
+    .map((player, playerIndex) => ({ player, playerIndex }))
+    .filter(({ player }) => selectedPriority === "all" || player.priority === selectedPriority);
+}
+
+function movePlayer(playerIndex, direction) {
+  const nextIndex = direction === "up" ? playerIndex - 1 : playerIndex + 1;
+  if (nextIndex < 0 || nextIndex >= state.players.length) return;
+  const [player] = state.players.splice(playerIndex, 1);
+  state.players.splice(nextIndex, 0, player);
+  saveAndRender();
 }
 
 function abilityRow(ability, abilityIndex) {
@@ -474,6 +542,12 @@ function levelOptions(selected, min = 0) {
     .join("");
 }
 
+function priorityOptions(selected) {
+  return Object.entries(priorities)
+    .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`)
+    .join("");
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -519,8 +593,12 @@ tabButtons.forEach((button) => {
 });
 
 addPlayerButton.addEventListener("click", () => {
-  state.players.push(createPlayer(`選手 ${state.players.length + 1}`));
+  state.players.unshift(createPlayer(`選手 ${state.players.length + 1}`));
   saveAndRender();
+});
+
+priorityFilter.addEventListener("input", () => {
+  renderPlayers();
 });
 
 coinOwned.addEventListener("input", (event) => {
@@ -534,6 +612,7 @@ resetButton.addEventListener("click", () => {
     coinOwned: 0,
     players: [createPlayer("選手 1")],
   };
+  priorityFilter.value = "all";
   saveState();
   renderEverything();
 });

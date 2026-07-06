@@ -100,7 +100,9 @@ main {
 .tab-button,
 .primary-button,
 .ghost-button,
-.remove-button {
+.remove-button,
+.collapse-button,
+.sort-button {
   border: 1px solid var(--line);
   border-radius: 8px;
   cursor: pointer;
@@ -269,6 +271,16 @@ main {
   gap: 10px;
 }
 
+.player-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 14px;
+}
+
+.filter-field {
+  width: min(260px, 100%);
+}
+
 .counter-row,
 .summary-item,
 .ability-row,
@@ -329,7 +341,9 @@ button:focus-visible {
 
 .primary-button,
 .ghost-button,
-.remove-button {
+.remove-button,
+.collapse-button,
+.sort-button {
   min-height: 42px;
   padding: 0 16px;
 }
@@ -352,16 +366,56 @@ button:focus-visible {
   color: #ff9aae;
 }
 
+.collapse-button,
+.sort-button {
+  background: rgba(125, 249, 255, 0.08);
+  color: var(--cyan);
+}
+
+.collapse-button {
+  width: 46px;
+  padding: 0;
+  font-size: 1.25rem;
+}
+
+.sort-button {
+  width: 42px;
+  padding: 0;
+}
+
+.sort-button:disabled,
+.remove-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .player-card {
   padding: 14px;
 }
 
 .player-head {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 170px auto;
+  grid-template-columns: 46px minmax(160px, 1fr) 130px 170px auto;
   gap: 12px;
   align-items: end;
+}
+
+.player-card.is-open .player-head {
   margin-bottom: 12px;
+}
+
+.player-card.is-collapsed {
+  background: linear-gradient(135deg, rgba(125, 249, 255, 0.08), rgba(255, 255, 255, 0.035));
+}
+
+.player-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.player-body[hidden] {
+  display: none;
 }
 
 .player-total {
@@ -503,6 +557,15 @@ button:focus-visible {
   padding: 7px 10px;
 }
 
+.empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  font-weight: 900;
+}
+
 .shortage-chip .material-icon {
   width: 28px;
   height: 28px;
@@ -550,8 +613,18 @@ button:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .player-head {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .priority-field,
+  .player-total,
+  .player-actions {
+    grid-column: 1 / -1;
+  }
+
   .row-result,
-  .remove-button {
+  .player-actions {
     grid-column: 1 / -1;
   }
 
@@ -566,7 +639,8 @@ button:focus-visible {
   }
 
   .topbar,
-  .row-heading {
+  .row-heading,
+  .player-tools {
     align-items: stretch;
     flex-direction: column;
   }
@@ -595,8 +669,22 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .primary-button {
+  .player-head {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .primary-button,
+  .filter-field {
     width: 100%;
+  }
+
+  .player-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .remove-button {
+    grid-column: 1 / -1;
   }
 
   .summary-values,

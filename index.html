@@ -83,6 +83,17 @@
               </div>
               <button class="primary-button" id="addPlayerButton" type="button">+ 選手を追加</button>
             </div>
+            <div class="player-tools" aria-label="選手の絞り込み">
+              <label class="field filter-field">
+                <span>優先順位で絞り込み</span>
+                <select id="priorityFilter">
+                  <option value="all">すべて</option>
+                  <option value="high">高</option>
+                  <option value="middle">中</option>
+                  <option value="low">低</option>
+                </select>
+              </label>
+            </div>
             <div class="player-list" id="playerList"></div>
           </section>
         </section>
