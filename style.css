@@ -284,6 +284,22 @@ button:focus-visible {
 
 .icon-settings-grid {
   display: grid;
+  gap: 12px;
+}
+
+.icon-setting-group {
+  display: grid;
+  gap: 8px;
+}
+
+.icon-setting-group h4 {
+  margin: 0;
+  color: var(--green-dark);
+  font-size: 0.92rem;
+}
+
+.icon-setting-group-grid {
+  display: grid;
   gap: 8px;
 }
 

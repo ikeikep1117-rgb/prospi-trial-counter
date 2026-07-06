@@ -197,6 +197,14 @@ async function loadCustomMaterialImages() {
   });
 }
 
+function materialImageKey(type, key) {
+  return `${type}:${key}`;
+}
+
+function getCustomMaterialImage(type, key) {
+  return customMaterialImages[materialImageKey(type, key)] || customMaterialImages[key];
+}
+
 async function saveCustomMaterialImage(key, dataUrl) {
   const db = await openImageDb();
   return new Promise((resolve, reject) => {
@@ -322,34 +330,46 @@ function renderInventory() {
 function renderIconSettings() {
   iconSettings.innerHTML = "";
 
-  materialKeys.forEach((key) => {
-    const row = document.createElement("div");
-    row.className = "icon-setting-row";
-    row.innerHTML = `
-      <div class="icon-setting-preview">
-        ${materialIcon(key, trialTypes[0])}
-        <div>
-          <strong>${materialNames[key]}</strong>
-          <span>${customMaterialImages[key] ? "写真を使用中" : "標準アイコン"}</span>
+  trialTypes.forEach((type) => {
+    const group = document.createElement("section");
+    group.className = "icon-setting-group";
+    group.innerHTML = `<h4>${type}</h4><div class="icon-setting-group-grid"></div>`;
+    const groupGrid = group.querySelector(".icon-setting-group-grid");
+
+    materialKeys.forEach((key) => {
+      const imageKey = materialImageKey(type, key);
+      const hasExactImage = Boolean(customMaterialImages[imageKey]);
+      const hasInheritedImage = !hasExactImage && Boolean(customMaterialImages[key]);
+      const row = document.createElement("div");
+      row.className = "icon-setting-row";
+      row.innerHTML = `
+        <div class="icon-setting-preview">
+          ${materialIcon(key, type)}
+          <div>
+            <strong>${type}の${materialNames[key]}</strong>
+            <span>${hasExactImage ? "個別写真を使用中" : hasInheritedImage ? "旧写真を使用中" : "標準アイコン"}</span>
+          </div>
         </div>
-      </div>
-      <label class="image-pick-button">
-        写真を選ぶ
-        <input type="file" accept="image/*" data-material-image="${key}">
-      </label>
-    `;
+        <label class="image-pick-button">
+          写真を選ぶ
+          <input type="file" accept="image/*" data-material-image="${imageKey}">
+        </label>
+      `;
 
-    row.querySelector("input").addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
+      row.querySelector("input").addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
 
-      const dataUrl = await fileToDataUrl(file);
-      customMaterialImages[key] = dataUrl;
-      await saveCustomMaterialImage(key, dataUrl);
-      renderEverything();
+        const dataUrl = await fileToDataUrl(file);
+        customMaterialImages[imageKey] = dataUrl;
+        await saveCustomMaterialImage(imageKey, dataUrl);
+        renderEverything();
+      });
+
+      groupGrid.append(row);
     });
 
-    iconSettings.append(row);
+    iconSettings.append(group);
   });
 }
 
@@ -572,7 +592,7 @@ function summaryNameWithIcon(name) {
 }
 
 function materialIcon(key, type) {
-  const src = customMaterialImages[key] || materialImages[key];
+  const src = getCustomMaterialImage(type, key) || materialImages[key];
   return `
     <span class="material-icon" style="--trial-color: ${trialColors[type] || "#0f7a4a"}">
       <img src="${src}" alt="" loading="lazy">
