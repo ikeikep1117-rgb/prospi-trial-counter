@@ -30,6 +30,8 @@ const trialColors = {
 
 const trialTypes = ["剛力", "俊敏", "技巧", "心"];
 const materialKeys = Object.keys(materialNames);
+const typedMaterialKeys = ["proof", "guide", "secret"];
+const commonMaterialKeys = ["flash", "awaken", "truth"];
 
 const levelCosts = {
   1: { coin: 3000, proof: 8, flash: 2 },
@@ -76,13 +78,22 @@ function createPlayer(name) {
 }
 
 function buildEmptyInventory() {
-  return trialTypes.reduce((all, type) => {
-    all[type] = materialKeys.reduce((items, key) => {
+  const inventory = trialTypes.reduce((all, type) => {
+    all[type] = typedMaterialKeys.reduce((items, key) => {
       items[key] = 0;
       return items;
     }, {});
     return all;
   }, {});
+  inventory.common = commonMaterialKeys.reduce((items, key) => {
+    items[key] = 0;
+    return items;
+  }, {});
+  return inventory;
+}
+
+function isCommonMaterial(key) {
+  return commonMaterialKeys.includes(key);
 }
 
 function loadState() {
@@ -149,9 +160,13 @@ function normalizePlayer(player, playerIndex) {
 function mergeInventory(saved = {}) {
   const merged = buildEmptyInventory();
   trialTypes.forEach((type) => {
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       merged[type][key] = numberOrZero(saved[type]?.[key]);
     });
+  });
+  commonMaterialKeys.forEach((key) => {
+    const legacyValues = trialTypes.map((type) => numberOrZero(saved[type]?.[key]));
+    merged.common[key] = numberOrZero(saved.common?.[key]) || Math.max(...legacyValues, 0);
   });
   return merged;
 }
@@ -179,12 +194,15 @@ async function loadCustomMaterialImages() {
     const store = transaction.objectStore("materials");
     const loaded = {};
 
-    materialKeys.forEach((key) => {
-      const request = store.get(key);
-      request.onsuccess = () => {
-        if (request.result) loaded[key] = request.result;
-      };
-    });
+    const request = store.getAllKeys();
+    request.onsuccess = () => {
+      request.result.forEach((key) => {
+        const getRequest = store.get(key);
+        getRequest.onsuccess = () => {
+          if (getRequest.result) loaded[key] = getRequest.result;
+        };
+      });
+    };
 
     transaction.oncomplete = () => {
       db.close();
@@ -198,10 +216,13 @@ async function loadCustomMaterialImages() {
 }
 
 function materialImageKey(type, key) {
-  return `${type}:${key}`;
+  return isCommonMaterial(key) ? `common:${key}` : `${type}:${key}`;
 }
 
 function getCustomMaterialImage(type, key) {
+  if (isCommonMaterial(key)) {
+    return customMaterialImages[materialImageKey(type, key)] || customMaterialImages[key] || trialTypes.map((trialType) => customMaterialImages[`${trialType}:${key}`]).find(Boolean);
+  }
   return customMaterialImages[materialImageKey(type, key)] || customMaterialImages[key];
 }
 
@@ -281,10 +302,13 @@ function getAbilityCost(ability) {
 }
 
 function getTotals() {
-  const totals = { coin: 0 };
+  const totals = { coin: 0, common: {} };
+  commonMaterialKeys.forEach((key) => {
+    totals.common[key] = 0;
+  });
   trialTypes.forEach((type) => {
     totals[type] = {};
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       totals[type][key] = 0;
     });
   });
@@ -293,8 +317,11 @@ function getTotals() {
     player.abilities.forEach((ability) => {
       const cost = getAbilityCost(ability);
       totals.coin += cost.coin;
-      materialKeys.forEach((key) => {
+      typedMaterialKeys.forEach((key) => {
         totals[ability.type][key] += cost[key];
+      });
+      commonMaterialKeys.forEach((key) => {
+        totals.common[key] += cost[key];
       });
     });
   });
@@ -306,7 +333,7 @@ function renderInventory() {
   inventoryGrid.innerHTML = "";
 
   trialTypes.forEach((type) => {
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       const row = document.createElement("div");
       row.className = "counter-row";
       row.innerHTML = `
@@ -324,6 +351,23 @@ function renderInventory() {
     });
   });
 
+  commonMaterialKeys.forEach((key) => {
+    const row = document.createElement("div");
+    row.className = "counter-row";
+    row.innerHTML = `
+      <label for="inv-common-${key}">
+        ${materialIcon(key)}
+        <span>${materialNames[key]}</span>
+      </label>
+      <input id="inv-common-${key}" type="number" min="0" inputmode="numeric" value="${state.inventory.common[key]}">
+    `;
+    row.querySelector("input").addEventListener("input", (event) => {
+      state.inventory.common[key] = numberOrZero(event.target.value);
+      saveAndRender();
+    });
+    inventoryGrid.append(row);
+  });
+
   coinOwned.value = state.coinOwned;
 }
 
@@ -336,7 +380,7 @@ function renderIconSettings() {
     group.innerHTML = `<h4>${type}</h4><div class="icon-setting-group-grid"></div>`;
     const groupGrid = group.querySelector(".icon-setting-group-grid");
 
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       const imageKey = materialImageKey(type, key);
       const hasExactImage = Boolean(customMaterialImages[imageKey]);
       const hasInheritedImage = !hasExactImage && Boolean(customMaterialImages[key]);
@@ -371,6 +415,46 @@ function renderIconSettings() {
 
     iconSettings.append(group);
   });
+
+  const commonGroup = document.createElement("section");
+  commonGroup.className = "icon-setting-group";
+  commonGroup.innerHTML = `<h4>共通の印</h4><div class="icon-setting-group-grid"></div>`;
+  const commonGroupGrid = commonGroup.querySelector(".icon-setting-group-grid");
+
+  commonMaterialKeys.forEach((key) => {
+    const imageKey = materialImageKey("", key);
+    const hasExactImage = Boolean(customMaterialImages[imageKey]);
+    const hasInheritedImage = !hasExactImage && Boolean(customMaterialImages[key]);
+    const row = document.createElement("div");
+    row.className = "icon-setting-row";
+    row.innerHTML = `
+      <div class="icon-setting-preview">
+        ${materialIcon(key)}
+        <div>
+          <strong>${materialNames[key]}</strong>
+          <span>${hasExactImage ? "個別写真を使用中" : hasInheritedImage ? "旧写真を使用中" : "標準アイコン"}</span>
+        </div>
+      </div>
+      <label class="image-pick-button">
+        写真を選ぶ
+        <input type="file" accept="image/*" data-material-image="${imageKey}">
+      </label>
+    `;
+
+    row.querySelector("input").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const dataUrl = await fileToDataUrl(file);
+      customMaterialImages[imageKey] = dataUrl;
+      await saveCustomMaterialImage(imageKey, dataUrl);
+      renderEverything();
+    });
+
+    commonGroupGrid.append(row);
+  });
+
+  iconSettings.append(commonGroup);
 }
 
 function renderPlayers() {
@@ -472,20 +556,28 @@ function abilityRow(ability, abilityIndex) {
 }
 
 function getAbilityShortages(cost, type) {
-  return materialKeys
-    .map((key) => ({
+  const typedShortages = typedMaterialKeys.map((key) => ({
       key,
+      type,
       name: `${type}の${materialNames[key]}`,
       count: Math.max(0, cost[key] - state.inventory[type][key]),
-    }))
-    .filter((item) => item.count > 0);
+    }));
+  const commonShortages = commonMaterialKeys.map((key) => ({
+      key,
+      name: materialNames[key],
+      count: Math.max(0, cost[key] - state.inventory.common[key]),
+    }));
+  return [...typedShortages, ...commonShortages].filter((item) => item.count > 0);
 }
 
 function getPlayerCost(player) {
-  const cost = { coin: 0 };
+  const cost = { coin: 0, common: {} };
+  commonMaterialKeys.forEach((key) => {
+    cost.common[key] = 0;
+  });
   trialTypes.forEach((type) => {
     cost[type] = {};
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       cost[type][key] = 0;
     });
   });
@@ -493,8 +585,11 @@ function getPlayerCost(player) {
   player.abilities.forEach((ability) => {
     const abilityCost = getAbilityCost(ability);
     cost.coin += abilityCost.coin;
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       cost[ability.type][key] += abilityCost[key];
+    });
+    commonMaterialKeys.forEach((key) => {
+      cost.common[key] += abilityCost[key];
     });
   });
 
@@ -504,9 +599,12 @@ function getPlayerCost(player) {
 function getPlayerShortage(cost) {
   let shortage = Math.max(0, cost.coin - state.coinOwned);
   trialTypes.forEach((type) => {
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       shortage += Math.max(0, cost[type][key] - state.inventory[type][key]);
     });
+  });
+  commonMaterialKeys.forEach((key) => {
+    shortage += Math.max(0, cost.common[key] - state.inventory.common[key]);
   });
   return shortage;
 }
@@ -519,12 +617,18 @@ function getPlayerShortageDetails(cost) {
   }
 
   trialTypes.forEach((type) => {
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       const count = Math.max(0, cost[type][key] - state.inventory[type][key]);
       if (count) {
         details.push({ kind: "material", type, key, name: `${type}の${materialNames[key]}`, count });
       }
     });
+  });
+  commonMaterialKeys.forEach((key) => {
+    const count = Math.max(0, cost.common[key] - state.inventory.common[key]);
+    if (count) {
+      details.push({ kind: "material", key, name: materialNames[key], count });
+    }
   });
 
   return details;
@@ -544,13 +648,20 @@ function renderSummary() {
   summaryGrid.append(createSummaryItem("コイン", totals.coin, state.coinOwned));
 
   trialTypes.forEach((type) => {
-    materialKeys.forEach((key) => {
+    typedMaterialKeys.forEach((key) => {
       const required = totals[type][key];
       if (!required) return;
       const owned = state.inventory[type][key];
       totalShortage += Math.max(0, required - owned);
       summaryGrid.append(createSummaryItem(`${type}の${materialNames[key]}`, required, owned));
     });
+  });
+  commonMaterialKeys.forEach((key) => {
+    const required = totals.common[key];
+    if (!required) return;
+    const owned = state.inventory.common[key];
+    totalShortage += Math.max(0, required - owned);
+    summaryGrid.append(createSummaryItem(materialNames[key], required, owned));
   });
 
   if (summaryGrid.children.length === 1 && totals.coin === 0) {
@@ -586,6 +697,9 @@ function summaryNameWithIcon(name) {
 
   const type = trialTypes.find((trialType) => name.startsWith(`${trialType}の`));
   const materialKey = materialKeys.find((key) => name.endsWith(materialNames[key]));
+  if (materialKey && isCommonMaterial(materialKey) && !type) {
+    return `${materialIcon(materialKey)}<span>${escapeHtml(name)}</span>`;
+  }
   if (!type || !materialKey) return `<span>${escapeHtml(name)}</span>`;
 
   return `${materialIcon(materialKey, type)}<span>${escapeHtml(name)}</span>`;
