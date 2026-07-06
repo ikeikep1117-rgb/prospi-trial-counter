@@ -11,6 +11,7 @@
 - 特殊能力ごとの現在Lv、目標Lv、試練タイプ入力
 - 証、指南、極意書、閃きの印、開眼の印、真価の印の所持数カウンター
 - 素材ごとのアイコン表示
+- 素材画像15枚を標準画像として同梱
 - タイプ別12素材と共通の印3素材、それぞれの画像を手元の写真に差し替え
 - 差し替えた素材画像をブラウザ内に保存
 - 必要数、所持数、不足数の自動計算
@@ -48,6 +49,22 @@ npx serve .
 │   ├── favicon.svg
 │   ├── icon-192.svg
 │   ├── icon-512.svg
+│   ├── material-photos/
+│   │   ├── gikou-guide.jpg
+│   │   ├── gikou-proof.jpg
+│   │   ├── gikou-secret.jpg
+│   │   ├── gouriki-guide.jpg
+│   │   ├── gouriki-proof.jpg
+│   │   ├── gouriki-secret.jpg
+│   │   ├── kokoro-guide.jpg
+│   │   ├── kokoro-proof.jpg
+│   │   ├── kokoro-secret.jpg
+│   │   ├── mark-awaken.jpg
+│   │   ├── mark-flash.jpg
+│   │   ├── mark-truth.jpg
+│   │   ├── shunbin-guide.jpg
+│   │   ├── shunbin-proof.jpg
+│   │   └── shunbin-secret.jpg
 │   ├── materials/
 │   │   ├── awaken.svg
 │   │   ├── flash.svg

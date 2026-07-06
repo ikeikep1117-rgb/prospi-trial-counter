@@ -11,6 +11,24 @@ const materialNames = {
 };
 
 const materialImages = {
+  "剛力:proof": "assets/material-photos/gouriki-proof.jpg",
+  "剛力:guide": "assets/material-photos/gouriki-guide.jpg",
+  "剛力:secret": "assets/material-photos/gouriki-secret.jpg",
+  "俊敏:proof": "assets/material-photos/shunbin-proof.jpg",
+  "俊敏:guide": "assets/material-photos/shunbin-guide.jpg",
+  "俊敏:secret": "assets/material-photos/shunbin-secret.jpg",
+  "技巧:proof": "assets/material-photos/gikou-proof.jpg",
+  "技巧:guide": "assets/material-photos/gikou-guide.jpg",
+  "技巧:secret": "assets/material-photos/gikou-secret.jpg",
+  "心:proof": "assets/material-photos/kokoro-proof.jpg",
+  "心:guide": "assets/material-photos/kokoro-guide.jpg",
+  "心:secret": "assets/material-photos/kokoro-secret.jpg",
+  "common:flash": "assets/material-photos/mark-flash.jpg",
+  "common:awaken": "assets/material-photos/mark-awaken.jpg",
+  "common:truth": "assets/material-photos/mark-truth.jpg",
+};
+
+const fallbackMaterialImages = {
   proof: "assets/materials/proof.svg",
   guide: "assets/materials/guide.svg",
   secret: "assets/materials/secret.svg",
@@ -706,7 +724,7 @@ function summaryNameWithIcon(name) {
 }
 
 function materialIcon(key, type) {
-  const src = getCustomMaterialImage(type, key) || materialImages[key];
+  const src = getCustomMaterialImage(type, key) || materialImages[materialImageKey(type, key)] || fallbackMaterialImages[key];
   return `
     <span class="material-icon" style="--trial-color: ${trialColors[type] || "#0f7a4a"}">
       <img src="${src}" alt="" loading="lazy">
