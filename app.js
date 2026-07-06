@@ -293,6 +293,16 @@ function getTotalShortage(totals) {
   }, 0);
 }
 
+function getRequiredDisplayItemsFromTotals(totals) {
+  return getRequiredItemsFromTotals(totals)
+    .map((item) => ({ ...item, shortage: item.required }))
+    .filter((item) => item.shortage > 0);
+}
+
+function getTotalRequired(totals) {
+  return getRequiredItemsFromTotals(totals).reduce((sum, item) => sum + item.required, 0);
+}
+
 function renderInventory() {
   inventoryGrid.innerHTML = "";
 
@@ -366,8 +376,8 @@ function renderPlayers() {
 
   visiblePlayers.forEach(({ player, playerIndex }) => {
     const playerTotals = getPlayerCost(player);
-    const playerShortages = getShortageItemsFromTotals(playerTotals);
-    const totalShortage = getTotalShortage(playerTotals);
+    const playerRequiredItems = getRequiredDisplayItemsFromTotals(playerTotals);
+    const totalRequired = getTotalRequired(playerTotals);
     const isOpen = Boolean(player.isOpen);
     const card = document.createElement("article");
     card.className = `player-card ${isOpen ? "is-open" : "is-collapsed"}`;
@@ -387,8 +397,8 @@ function renderPlayers() {
           </select>
         </label>
         <div class="player-total">
-          <span>この選手の不足合計</span>
-          <strong>${totalShortage.toLocaleString()}</strong>
+          <span>この選手の必要合計</span>
+          <strong>${totalRequired.toLocaleString()}</strong>
         </div>
         <div class="player-actions">
           <button class="sort-button" type="button" data-move="up" ${playerIndex === 0 ? "disabled" : ""}>↑</button>
@@ -401,9 +411,9 @@ function renderPlayers() {
           ${player.abilities.map((ability, abilityIndex) => abilityRow(ability, abilityIndex)).join("")}
         </div>
         <div class="shortage-detail">
-          <span class="shortage-title">この選手の合計不足</span>
+          <span class="shortage-title">この選手の合計必要量</span>
           <div class="shortage-list">
-            ${playerShortages.length ? playerShortages.map(shortageChip).join("") : '<span class="shortage-chip ok">全部足りています</span>'}
+            ${playerRequiredItems.length ? playerRequiredItems.map(shortageChip).join("") : '<span class="shortage-chip ok">追加素材なし</span>'}
           </div>
         </div>
       </div>
@@ -511,15 +521,11 @@ function abilityRow(ability, abilityIndex) {
 function getAbilityShortages(cost, type) {
   const items = [];
   typedMaterialKeys.forEach((key) => {
-    const required = cost[key];
-    const owned = state.inventory[type][key];
-    const shortage = Math.max(0, required - owned);
+    const shortage = cost[key];
     if (shortage) items.push({ kind: "material", type, key, name: `${type}の${materialNames[key]}`, shortage });
   });
   commonMaterialKeys.forEach((key) => {
-    const required = cost[key];
-    const owned = state.inventory.common[key];
-    const shortage = Math.max(0, required - owned);
+    const shortage = cost[key];
     if (shortage) items.push({ kind: "material", key, name: materialNames[key], shortage });
   });
   return items;
